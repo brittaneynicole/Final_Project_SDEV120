@@ -1,0 +1,276 @@
+# Defining the menu and cost (unchanged)
+menu = {
+    "Veggie Burger": 35,
+    "Hamburger": 45,
+    "Fried Chicken Sliders": 38,
+    "Hamburger Sliders": 38,
+    "Veggie Sliders": 38,
+    "Haddock Sandwich": 38,
+    "BLT": 42,
+    "Faux BLT": 42,
+    "Chicken Burrito": 42,
+    "Falafel Wrap": 42,
+    "Cheese Pizza": 59,
+    "Pepperoni Pizza": 59,
+    "Faux Meat and Chips": 77,
+    "Fish and Chips": 77
+}
+
+# Reservation class (unchanged)
+class Reservation:
+    def __init__(self, name, num_people, time):
+        self.name = name
+        self.num_people = num_people
+        self.time = time
+        self.checked_in = False
+        self.table_assigned = None
+        self.order_placed = False  # Track if an order has been placed for this reservation
+
+# Table class with occupancy tracking
+class Table:
+    def __init__(self, table_number, capacity):
+        self.table_number = table_number
+        self.capacity = capacity
+        self.current_occupancy = 0
+        self.is_free = True
+
+    def reserve(self, num_people):
+        if self.is_free and num_people <= self.capacity - self.current_occupancy:
+            self.is_free = False
+            self.current_occupancy += num_people
+            return True
+        return False
+
+    def release(self, num_people):
+        if not self.is_free:
+            self.current_occupancy -= num_people
+            if self.current_occupancy == 0:
+                self.is_free = True
+
+# Initialize tables (unchanged)
+tables = [
+    Table(1, 2), Table(2, 2), Table(3, 2), Table(4, 2),
+    Table(5, 2), Table(6, 2), Table(7, 2), Table(8, 2),
+    Table(9, 10), Table(10, 10), Table(11, 6), Table(12, 6),
+    Table(13, 6), Table(14, 6), Table(15, 4), Table(16, 4),
+    Table(17, 4), Table(18, 4), Table(19, 4), Table(20, 4)
+]
+
+# List to manage reservations
+reservations = []
+
+# Reservation counter
+reservation_counter = 0
+
+# Total number of people currently reserved
+total_reserved_people = 0
+
+# Set to track reservations with orders
+reservations_with_orders = set()
+
+# Function to make a reservation
+def make_reservation():
+    global reservations
+    global reservation_counter
+    global total_reserved_people
+    
+    if total_reserved_people >= 50:
+        print("Maximum reservations reached. Cannot accept more.")
+        return
+    
+    name = input("Enter customer name: ")
+    num_people = int(input("Enter number of people: "))
+    time = input("Enter reservation time: ")
+    
+    if num_people > 10:
+        print("Sorry, we can't accommodate a group larger than 10.")
+        return
+    
+    # Check if adding this reservation would exceed the seating capacity
+    available_seats = sum(table.capacity - table.current_occupancy for table in tables if table.is_free)
+    if num_people > available_seats:
+        print("Sorry, there are not enough seats available to accommodate this reservation.")
+        return
+    
+    if total_reserved_people + num_people > 50:
+        print(f"Sorry, the reservation for {num_people} people would exceed the limit of 50 people.")
+        return
+    
+    # Check if there are enough tables available at the requested time
+    if not can_reserve_tables(num_people):
+        print("Sorry, there are not enough tables available to accommodate this reservation at the requested time.")
+        return
+    
+    reservation_counter += 1
+    reservation = Reservation(name, num_people, time)
+    reservations.append(reservation)
+    total_reserved_people += num_people
+    
+    print(f"Reservation successfully added. Reservation ID: {reservation_counter}")
+
+# Function to check if there are enough tables available for a reservation at a given time
+def can_reserve_tables(num_people):
+    # Count available tables that can accommodate num_people
+    available_tables = sum(1 for table in tables if table.is_free and table.capacity >= num_people)
+    return available_tables > 0
+
+# Function to check-in a reservation (unchanged)
+def check_in_reservation():
+    global reservations
+    global tables
+    
+    print("\nReservations to check-in:")
+    for i, reservation in enumerate(reservations):
+        if not reservation.checked_in:
+            print(f"{i + 1}. {reservation.name} - {reservation.num_people} people at {reservation.time}")
+    
+    choice = input("\nEnter the number of the reservation to check-in (or '0' to cancel): ")
+    try:
+        choice = int(choice)
+        if choice < 1 or choice > len(reservations):
+            print("Invalid option. Please enter a valid reservation number.")
+            return
+    except ValueError:
+        print("Invalid input. Please enter a number.")
+        return
+    
+    reservation = reservations[choice - 1]
+    
+    # Find an available table that fits the reservation size
+    assigned_table = None
+    for table in tables:
+        if table.is_free and table.capacity >= reservation.num_people:
+            assigned_table = table
+            break
+    
+    if assigned_table:
+        reservation.checked_in = True
+        reservation.table_assigned = assigned_table
+        assigned_table.is_free = False
+        assigned_table.current_occupancy = reservation.num_people
+        print(f"Checked in {reservation.name} for {reservation.num_people} people at table {assigned_table.table_number}.")
+    else:
+        print("No suitable table available. Unable to check-in reservation.")
+
+# Function to display the menu (unchanged)
+def display_menu():
+    print("Menu:")
+    for item, price in menu.items():
+        print(f"- {item:<25}: ${price:.2f}")
+
+# Function to take order
+def take_order():
+    global reservations
+    global reservations_with_orders
+    
+    print("\nReservations eligible for ordering:")
+    for i, reservation in enumerate(reservations):
+        if reservation.checked_in and not reservation.order_placed:
+            print(f"{i + 1}. {reservation.name} - {reservation.num_people} people at {reservation.time}")
+    
+    choice = input("\nEnter the number of the reservation to place an order (or '0' to cancel): ")
+    try:
+        choice = int(choice)
+        if choice < 1 or choice > len(reservations):
+            print("Invalid option. Please enter a valid reservation number.")
+            return
+    except ValueError:
+        print("Invalid input. Please enter a number.")
+        return
+    
+    reservation = reservations[choice - 1]
+    
+    if reservation.order_placed:
+        print("Order has already been placed for this reservation.")
+        return
+    
+    # Take order for this reservation
+    order = {}
+    total_cost = 0
+    while True:
+        display_menu()
+        
+        print("\nWhat would you like to order from MessiJoes today? (or 'done' to finish)")
+        choice = input()
+        
+        if choice.lower() == 'done':
+            break
+        
+        choice = choice.strip()
+        
+        if choice in menu:
+            quantity = input(f"\nHow many '{choice}' would you like to order? ")
+            try:
+                quantity = int(quantity)
+                if quantity <= 0:
+                    print("Invalid quantity. Please enter a positive number.")
+                    continue
+            except ValueError:
+                print("Invalid input. Please enter a valid number for quantity.")
+                continue
+            
+            order[choice] = quantity
+            item_price = menu[choice]
+            total_cost += item_price * quantity
+            print(f"\n{quantity} '{choice}' added to your order. Total cost so far: ${total_cost:.2f}")
+            
+            while True:
+                add_more = input("\nWould you like to add anything else? (yes/no): ").strip().lower()
+                if add_more == 'no':
+                    break
+                elif add_more == 'yes':
+                    break
+                else:
+                    print("Invalid input. Please enter 'yes' or 'no'.")
+            
+            if add_more == 'no':
+                break
+        
+        else:
+            print("Invalid choice. Please choose another item from the menu.")
+    
+    # Mark reservation as having placed an order
+    reservation.order_placed = True
+    reservations_with_orders.add(reservation)
+    
+    return order, total_cost
+
+# Main program loop (unchanged)
+def main():
+    global reservations
+    global total_reserved_people
+    
+    while True:
+        print("\nWelcome to MessiJoes Restaurant Management System\n")
+        print("1. Make Reservation")
+        print("2. Check-in for Reservation")
+        print("3. Enter Order")
+        print("4. Calculate and Pay Bill")
+        print("5. Close the Restaurant")
+        print("Enter your choice (1-5): \n")
+        
+        choice = input().strip()  # Strip any leading/trailing whitespace
+        
+        if choice == '1':
+            make_reservation()
+        elif choice == '2':
+            check_in_reservation()
+        elif choice == '3':
+            # Take order functionality
+            order, total_cost = take_order()
+        
+        elif choice == '4':
+            # Calculate and pay bill functionality (to be implemented)
+            print("Option 4 selected: Calculate and Pay Bill")
+            # Placeholder for future implementation
+            
+        elif choice == '5':
+            # Close the restaurant functionality (to be implemented)
+            print("Option 5 selected: Close the Restaurant")
+            print("\nWhat a DAY, good work MessiJoes team! Raises all around!")
+            break
+        else:
+            print("Invalid choice. Please enter a number from 1 to 5.")
+
+if __name__ == "__main__":
+    main()
